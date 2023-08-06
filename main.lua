@@ -1,5 +1,7 @@
--- Gui to Lua
+ -- Gui to Lua
 -- Version: 3.2
+
+-- Credits to Amity for fixing env leaks<3
 
 -- Instances:
 
@@ -396,6 +398,29 @@ end)
 
 -- thanks chatgpt
 
+local function rawtostring(userdata)
+	if type(userdata) == "table" or typeof(userdata) == "userdata" then
+		local rawmetatable = getrawmetatable(userdata)
+		local cachedstring = rawmetatable and rawget(rawmetatable, "__tostring")
+
+		if cachedstring then
+            local wasreadonly = isreadonly(rawmetatable)
+            if wasreadonly then
+                makewritable(rawmetatable)
+            end
+			rawset(rawmetatable, "__tostring", nil)
+			local safestring = tostring(userdata)
+			rawset(rawmetatable, "__tostring", cachedstring)
+            if wasreadonly then
+                makereadonly(rawmetatable)
+            end
+			return safestring
+		end
+	end
+	return tostring(userdata)
+end
+
+
 function luauToString(value)
     if type(value) == "string" then
         return string.format("%q", value)
@@ -416,7 +441,7 @@ function luauToString(value)
         end
         return "{" .. table.concat(parts, ", ") .. "}"
     else
-        return tostring(value)
+        return rawtostring(value)
     end
 end
 
@@ -430,8 +455,7 @@ tempText.Changed:Connect(function()
 end)
 -- logging part :3333
 
-function liglog(remote,script,method,args)  
-	setidentity(8)
+function liglog(remote,script,method,args)
     local c = Example:Clone()
 	c.Visible = true
     c.Parent = temp
@@ -455,7 +479,7 @@ old = hookmetamethod(game, "__namecall",newcclosure(function(self,...)
 	local m = getnamecallmethod()
     if m == "FireServer" or m == "InvokeServer" then 
         if not table.find(bl,self) and not checkcaller() then
-			local liglogargs = {self,getfenv(2).script,m,{...}}
+			local liglogargs = {self,rawget(getfenv(2),"script"),m,{...}}
 			task.spawn(function()
             	liglog(table.unpack(liglogargs))
 			end)
